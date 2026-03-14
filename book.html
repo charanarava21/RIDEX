@@ -472,6 +472,15 @@ status: "pending",
 createdAt: serverTimestamp()
 });
 
+
+// 🔥 Seats decrease logic
+const rideRef = doc(db, "rides", rideId);
+
+await updateDoc(rideRef, {
+seats: selectedRide.seats - selectedSeatsCount
+});
+
+
 localStorage.setItem("currentBooking", JSON.stringify({
 bookingId,
 rideId,
