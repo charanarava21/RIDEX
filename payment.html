@@ -173,15 +173,7 @@ Confirm & Pay ₹<span id="btn-amount">0.00</span>
 <script type="module">
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import {
-getFirestore,
-collection,
-addDoc,
-doc,
-getDoc,
-updateDoc,
-serverTimestamp
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 const firebaseConfig = {
@@ -211,12 +203,8 @@ onAuthStateChanged(auth, (user)=>{
 
 // ===== GET AMOUNT =====
 const params = new URLSearchParams(window.location.search);
-
-const bookingId = params.get("bookingId");
-const rideId = params.get("rideId");
-const rideParam = params.get("ride");
 let amount = parseFloat(params.get("amount")) || 0;
-
+const rideParam = params.get("ride");
 amount = amount.toFixed(2);
 
 document.getElementById("btn-amount").innerText = amount;
@@ -225,103 +213,47 @@ document.getElementById("summary-amount").innerText = "₹" + amount;
 // ===== PAYMENT FUNCTION =====
 window.handlePayment = async function(){
 
-document.getElementById("loading-overlay").style.display="flex";
+  document.getElementById("loading-overlay").style.display="flex";
 
-setTimeout(async ()=>{
+  setTimeout(async ()=>{
 
-try{
+    try {
 
-/* ===============================
-   CASE 1 → BOOKING PAYMENT
-================================ */
+      if(rideParam && currentUser){
 
-if(bookingId && rideId){
+        const rideData = JSON.parse(decodeURIComponent(rideParam));
 
-const bookingRef = doc(db,"bookings",bookingId);
-const bookingSnap = await getDoc(bookingRef);
-
-if(!bookingSnap.exists()){
-alert("Booking not found");
-return;
-}
-
-const bookingData = bookingSnap.data();
-
-const rideRef = doc(db,"rides",rideId);
-const rideSnap = await getDoc(rideRef);
-
-if(!rideSnap.exists()){
-alert("Ride not found");
-return;
-}
-
-const rideData = rideSnap.data();
-
-// seat validation
-if(rideData.seats < bookingData.seatsBooked){
-alert("Seats no longer available");
-return;
-}
-
-// decrease seats
-await updateDoc(rideRef,{
-seats: rideData.seats - bookingData.seatsBooked
-});
-
-// confirm booking
-await updateDoc(bookingRef,{
-status:"confirmed",
-paidAt: serverTimestamp()
-});
-
-document.getElementById("success-text").innerText =
-"Your booking is confirmed!";
-
-}
-
-
-/* ===============================
-   CASE 2 → RIDE PUBLISH PAYMENT
-================================ */
-
-else if(rideParam){
-
-const rideData = JSON.parse(decodeURIComponent(rideParam));
-
+// ===== Deposit validation =====
 const calculatedDeposit =
-(parseFloat(rideData.price) * (rideData.seats || 1)) * 0.1;
+   (parseFloat(rideData.price) *
+   (rideData.seats || 1)) * 0.1;
 
 if(parseFloat(amount) !== parseFloat(calculatedDeposit.toFixed(2))){
-alert("Payment amount mismatch!");
-document.getElementById("loading-overlay").style.display="none";
-return;
+   alert("Payment amount mismatch!");
+   document.getElementById("loading-overlay").style.display="none";
+   return;
 }
 
 await addDoc(collection(db,"rides"),{
-...rideData,
-publisherId: currentUser.uid,
-status:"active",
-depositPaid:true,
-createdAt: serverTimestamp()
+  ...rideData,
+  publisherId: currentUser.uid,   // ⭐ VERY IMPORTANT
+  status: "active",
+  depositPaid: true,
+  createdAt: serverTimestamp()
 });
+      }
 
-document.getElementById("success-text").innerText =
-"Your ride has been successfully published.";
+      document.getElementById("loader-content").classList.add("hidden");
+      document.getElementById("success-content").classList.remove("hidden");
 
-}
+      document.getElementById("success-text").innerText =
+        "Your ride has been successfully published.";
 
-document.getElementById("loader-content").classList.add("hidden");
-document.getElementById("success-content").classList.remove("hidden");
+    } catch(e){
+      alert("Error saving ride after payment.");
+    }
 
-}catch(e){
-
-alert("Payment processing error");
-console.error(e);
-
-}
-
-},3000);
-
+  },3000);
 };
 
 </script>
